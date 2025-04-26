@@ -39,11 +39,20 @@ class ConvVAE(nn.Module):
         )
 
     def reparameterize(self, mu, logvar):
-        ################## YOUR CODE HERE ######################
-
-        ########################################################
-
-        pass
+        """
+        Implements the reparameterization trick:
+        z = mu + sigma * epsilon, where epsilon ~ N(0,1)
+        """
+        if self.training:
+            # Convert logvar to std
+            std = torch.exp(0.5 * logvar)
+            # Sample epsilon from N(0,1)
+            eps = torch.randn_like(std)
+            # Return transformed sample
+            return mu + eps * std
+        else:
+            # During inference, just return the mean
+            return mu
 
     def encode(self, x):
         x = self.encoder(x)

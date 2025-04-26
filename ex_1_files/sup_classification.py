@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
@@ -9,9 +10,43 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-################### Complete the code below ###################
-# Define a CNN architecture
-###############################################################
+class CNN(nn.Module):
+    def __init__(self):
+        super(CNN, self).__init__()
+        # Convolutional layers
+        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
+        self.conv3 = nn.Conv2d(64, 64, kernel_size=3, padding=1)
+        
+        # Pooling layer
+        self.pool = nn.MaxPool2d(2, 2)
+        
+        # Fully connected layers
+        self.fc1 = nn.Linear(64 * 3 * 3, 512)
+        self.fc2 = nn.Linear(512, 10)
+        
+        # Dropout layer for regularization
+        self.dropout = nn.Dropout(0.5)
+
+    def forward(self, x):
+        # First conv block
+        x = self.pool(F.relu(self.conv1(x)))
+        
+        # Second conv block
+        x = self.pool(F.relu(self.conv2(x)))
+        
+        # Third conv block
+        x = self.pool(F.relu(self.conv3(x)))
+        
+        # Flatten
+        x = x.view(-1, 64 * 3 * 3)
+        
+        # Fully connected layers
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        
+        return x
 
 # Load MNIST dataset
 transform = transforms.Compose([
@@ -29,9 +64,11 @@ train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 test_dataset = torchvision.datasets.MNIST(root='./data', train=False, download=True, transform=transform)
 test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
-################### Complete the code below ###################
 # Initialize the model, loss function, and optimizer
-################### Complete the code below ###################
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model = CNN().to(device)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop
 val_losses = []
@@ -41,9 +78,21 @@ for epoch in range(num_epochs):
     model.train()  # moves the model to training mode
     running_loss = 0.0
     for images, labels in tqdm(train_loader):
-        ################### Complete the code below ###################
-        # perform a full iteration of training
-        ###############################################################
+        # Move data to device
+        images = images.to(device)
+        labels = labels.to(device)
+        
+        # Zero the gradients
+        optimizer.zero_grad()
+        
+        # Forward pass
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+        
+        # Backward pass and optimization
+        loss.backward()
+        optimizer.step()
+        
         running_loss += loss.item()
 
     # Validation
@@ -53,6 +102,8 @@ for epoch in range(num_epochs):
     val_loss = 0.0
     with torch.no_grad():  # Temporarily set all the requires_grad flags to false
         for images, labels in tqdm(test_loader):
+            images = images.to(device)
+            labels = labels.to(device)
             outputs = model(images)
             loss = criterion(outputs, labels)
             val_loss += loss.item()
@@ -65,7 +116,34 @@ for epoch in range(num_epochs):
     accuracy = correct / total
     val_losses.append(val_loss)
     val_accuracies.append(accuracy)
+    
+    print(f'Epoch [{epoch+1}/{num_epochs}]:')
+    print(f'Training Loss: {epoch_loss:.4f}')
+    print(f'Validation Loss: {val_loss:.4f}')
+    print(f'Validation Accuracy: {accuracy*100:.2f}%\n')
 
-################### Complete the code below ###################
-# plot the validation loss and accuracy
-###############################################################
+# Plot validation loss and accuracy
+plt.figure(figsize=(12, 4))
+
+# Plot validation loss
+plt.subplot(1, 2, 1)
+plt.plot(val_losses, 'b-', label='Validation Loss')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.title('Validation Loss vs. Epoch')
+plt.grid(True)
+plt.legend()
+
+# Plot validation accuracy
+plt.subplot(1, 2, 2)
+plt.plot(val_accuracies, 'r-', label='Validation Accuracy')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.title('Validation Accuracy vs. Epoch')
+plt.grid(True)
+plt.legend()
+
+plt.tight_layout()
+plt.show()
+
+print(f'Final validation accuracy: {val_accuracies[-1]*100:.2f}%')
